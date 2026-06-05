@@ -116,27 +116,51 @@ $payload = @{
   max_output_tokens = $maxOutputTokens
 } | ConvertTo-Json -Depth 10
 
-$response = Invoke-RestMethod `
-  -Method Post `
-  -Uri "https://api.x.ai/v1/responses" `
-  -Headers $headers `
-  -Body $payload `
-  -TimeoutSec 120
+try {
+  $response = Invoke-RestMethod `
+    -Method Post `
+    -Uri "https://api.x.ai/v1/responses" `
+    -Headers $headers `
+    -Body $payload `
+    -TimeoutSec 120
+} catch {
+  if (-not $_.Exception.Response) {
+    Write-Error "Connection failed — DNS, network, or TLS error."
+  } else {
+    $statusCode = $_.Exception.Response.StatusCode.value__
+    Write-Error "xAI API returned HTTP ${statusCode}"
+  }
+  exit 1
+}
 
+# Defensive parse: response.output may be absent or not an array
 $texts = @()
-foreach ($item in $response.output) {
-  if ($item.type -eq "message") {
-    foreach ($content in $item.content) {
-      if ($content.text) { $texts += $content.text }
+$toolCalls = @()
+if ($response.output -is [array]) {
+  foreach ($item in $response.output) {
+    if ($item.type -eq "message" -and $item.content) {
+      foreach ($content in $item.content) {
+        if ($content.text) { $texts += $content.text }
+      }
     }
+  }
+  $toolCalls = @($response.output | Where-Object { $_.type -eq "custom_tool_call" } | Select-Object name,input,status)
+} elseif ($response.output -and $response.output.type -eq "message") {
+  if ($response.output.content -and $response.output.content.text) {
+    $texts += $response.output.content.text
   }
 }
 
+$xSearchCalls = if ($response.usage.server_side_tool_usage_details) {
+  $response.usage.server_side_tool_usage_details.x_search_calls
+} else { 0 }
+$totalTokens = if ($response.usage.total_tokens) { $response.usage.total_tokens } else { 0 }
+
 [PSCustomObject]@{
   answer = ($texts -join "`n")
-  x_search_calls = $response.usage.server_side_tool_usage_details.x_search_calls
-  total_tokens = $response.usage.total_tokens
-  tool_calls = @($response.output | Where-Object { $_.type -eq "custom_tool_call" } | Select-Object name,input,status)
+  x_search_calls = $xSearchCalls
+  total_tokens = $totalTokens
+  tool_calls = $toolCalls
 } | ConvertTo-Json -Depth 8
 ```
 
@@ -202,8 +226,10 @@ In the response:
 
 ## Failure Handling
 
-- `401` or `403`: key is invalid, revoked, or lacks permission.
+- `400`: bad request — key may be invalid, malformed, or the endpoint rejected the payload. Check key format and request body.
+- `401` or `403`: key is missing, invalid, revoked, or lacks permission.
 - `429`: rate limit or quota issue.
+- Connection failures (DNS, TLS, network): the `.ps1` script detects missing `Response` and reports a connection error; inline callers should wrap the HTTP call and handle exceptions where `Response` is null.
 - No results: retry once with a simpler keyword query and the same `max_tool_calls` limit.
 - If a request times out, narrow the query and lower `max_output_tokens`.
 

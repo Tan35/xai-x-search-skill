@@ -108,8 +108,23 @@ xAI charges for server-side `x_search` tool calls in addition to model token usa
 - Prefer cost-first mode unless the user asks for completeness.
 - Use concise output.
 
+## Known Limitations
+
+### `max_tool_calls` Is Not Strictly Enforced
+
+xAI's `max_tool_calls` parameter is advisory, not a hard limit. In testing, setting `max_tool_calls=1` produced 2-3 actual server-side search calls on some runs. The `.ps1` script includes a post-hoc check that warns when actual server calls exceed the limit (using `x_search_calls` from the usage block). Cost-first mode cannot rely on this parameter alone — combine it with prompt-level constraints.
+
+### Error Code Behavior
+
+Invalid or malformed API keys may return HTTP `400` (bad request), not `401` or `403`. The script handles all three codes plus connection failures (DNS, network, TLS) where no HTTP response exists.
+
+### PowerShell Compatibility
+
+The bundled helper script requires PowerShell. On Linux or macOS, install [PowerShell](https://github.com/PowerShell/PowerShell) first. The script avoids PS7+-only operators and uses `if/else` for PS5.1 compatibility. Agents that cannot run PowerShell should use the self-contained inline example in `SKILL.md`.
+
 ## Files
 
 - `SKILL.md`: Skill instructions for agents.
 - `agents/openai.yaml`: UI metadata for compatible agents.
-- `scripts/xai_x_search.ps1`: Reusable low-cost PowerShell caller.
+- `scripts/xai_x_search.ps1`: Reusable PowerShell caller with error handling and cost warnings.
+- `LICENSE`: MIT license.
