@@ -1,0 +1,83 @@
+# xAI X Search Skill
+
+A Codex/Grok Skill for searching X/Twitter through the xAI Responses API `x_search` tool with conservative cost controls.
+
+Use it when an agent needs to verify recent X posts, find discussion around a claim, or call Grok's X search capabilities from a reusable workflow.
+
+## What It Does
+
+- Uses the public xAI Responses API tool: `{ "type": "x_search" }`
+- Documents the internal search tools Grok may invoke:
+  - `x_keyword_search`
+  - `x_semantic_search`
+  - `x_user_search`
+  - `x_thread_fetch`
+- Defaults to low-cost behavior:
+  - `max_tool_calls: 1`
+  - `reasoning.effort: "low"`
+  - bounded output tokens
+  - date-filtered searches when possible
+- Includes a reusable PowerShell helper script.
+
+## Install
+
+Import this repository as a Skill in Codex/Grok, or copy the repository folder into your local skills directory:
+
+```powershell
+# Codex
+git clone https://github.com/Tan35/xai-x-search-skill.git "$env:USERPROFILE\.codex\skills\xai-x-search"
+
+# Grok CLI
+git clone https://github.com/Tan35/xai-x-search-skill.git "$env:USERPROFILE\.grok\skills\xai-x-search"
+```
+
+## Setup
+
+Set your xAI API key as an environment variable. Do not hard-code it in the Skill or scripts.
+
+```powershell
+$env:XAI_API_KEY = "xai-..."
+```
+
+If you accidentally paste a real API key into chat, rotate or revoke it in the xAI console.
+
+## Use From An Agent
+
+Ask the agent:
+
+```text
+Use $xai-x-search to search X for recent posts about "Grok CLI X search tools" and return 3 concise findings with links.
+```
+
+## Use The Script Directly
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.codex\skills\xai-x-search\scripts\xai_x_search.ps1" `
+  -Query "Grok CLI X search tools" `
+  -FromDate "2026-06-01" `
+  -ToDate "2026-06-05" `
+  -MaxToolCalls 1 `
+  -MaxResults 3
+```
+
+The script returns JSON with:
+
+- `answer`
+- `x_search_calls`
+- `total_tokens`
+- `tool_calls`
+
+## Cost Notes
+
+xAI charges for server-side `x_search` tool calls in addition to model token usage. Keep searches narrow:
+
+- Use date ranges.
+- Ask for a small number of results.
+- Keep `MaxToolCalls` at `1` unless you explicitly need a broader search.
+- Use concise output.
+
+## Files
+
+- `SKILL.md`: Skill instructions for agents.
+- `agents/openai.yaml`: UI metadata for compatible agents.
+- `scripts/xai_x_search.ps1`: Reusable low-cost PowerShell caller.

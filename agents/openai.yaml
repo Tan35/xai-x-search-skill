@@ -1,0 +1,7 @@
+interface:
+  display_name: "xAI X Search"
+  short_description: "Search X/Twitter via xAI with cost controls"
+  default_prompt: "Use $xai-x-search to search X for recent posts about a claim and return concise sourced findings."
+
+policy:
+  allow_implicit_invocation: true
