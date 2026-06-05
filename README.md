@@ -17,7 +17,8 @@ Use it when an agent needs to verify recent X posts, find discussion around a cl
   - `reasoning.effort: "low"`
   - bounded output tokens
   - date-filtered searches when possible
-- Includes a reusable PowerShell helper script.
+- Keeps the main workflow self-contained in `SKILL.md`, because many agents only read that file.
+- Includes a reusable PowerShell helper script for agents that can read bundled resources.
 
 ## Install
 
@@ -47,6 +48,16 @@ Ask the agent:
 
 ```text
 Use $xai-x-search to search X for recent posts about "Grok CLI X search tools" and return 3 concise findings with links.
+```
+
+## Self-Contained Usage
+
+The full API calling pattern is embedded directly in `SKILL.md`. This is intentional: many agents import a Skill from GitHub but only read `SKILL.md`, not files under `scripts/`.
+
+Ask the agent:
+
+```text
+Use $xai-x-search to run a one-call X search for recent posts about "Grok CLI X search tools". Use the self-contained PowerShell/API example in SKILL.md, not bundled scripts.
 ```
 
 ## Use The Script Directly
