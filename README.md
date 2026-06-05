@@ -13,10 +13,12 @@ Use it when an agent needs to verify recent X posts, find discussion around a cl
   - `x_user_search`
   - `x_thread_fetch`
 - Defaults to low-cost behavior:
-  - `max_tool_calls: 1`
+  - cost-first mode by default
+  - `max_tool_calls: 1` plus a strict one-search prompt
   - `reasoning.effort: "low"`
   - bounded output tokens
   - date-filtered searches when possible
+- Supports quality-first mode for broader semantic/user/thread search when recall matters more than cost.
 - Keeps the main workflow self-contained in `SKILL.md`, because many agents only read that file.
 - Includes a reusable PowerShell helper script for agents that can read bundled resources.
 
@@ -50,6 +52,23 @@ Ask the agent:
 Use $xai-x-search to search X for recent posts about "Grok CLI X search tools" and return 3 concise findings with links.
 ```
 
+## Modes
+
+The Skill chooses a mode before making the API call:
+
+- **Cost-first**: default. Best for quick checks and low spend. It asks Grok to use exactly one keyword/latest X search and avoids semantic, user, thread, and follow-up searches.
+- **Quality-first**: best for deeper research. It allows semantic search, keyword search, and relevant user/thread context, but can trigger multiple billable X search calls.
+
+Example prompts:
+
+```text
+Use $xai-x-search in cost-first mode to check whether people are discussing "Claude Mythos". Return 3 links.
+```
+
+```text
+Use $xai-x-search in quality-first mode to investigate the "Claude Mythos" rumor across X, including threads and source confidence.
+```
+
 ## Self-Contained Usage
 
 The full API calling pattern is embedded directly in `SKILL.md`. This is intentional: many agents import a Skill from GitHub but only read `SKILL.md`, not files under `scripts/`.
@@ -65,6 +84,7 @@ Use $xai-x-search to run a one-call X search for recent posts about "Grok CLI X 
 ```powershell
 powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.codex\skills\xai-x-search\scripts\xai_x_search.ps1" `
   -Query "Grok CLI X search tools" `
+  -Mode cost `
   -FromDate "2026-06-01" `
   -ToDate "2026-06-05" `
   -MaxToolCalls 1 `
@@ -85,6 +105,7 @@ xAI charges for server-side `x_search` tool calls in addition to model token usa
 - Use date ranges.
 - Ask for a small number of results.
 - Keep `MaxToolCalls` at `1` unless you explicitly need a broader search.
+- Prefer cost-first mode unless the user asks for completeness.
 - Use concise output.
 
 ## Files
