@@ -93,10 +93,14 @@ powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.codex\skills\xai-x-s
 
 The script returns JSON with:
 
+- `mode`
 - `answer`
 - `x_search_calls`
 - `total_tokens`
 - `tool_calls`
+- `max_tool_calls_limit`
+- `actual_tool_calls`
+- `warnings`
 
 ## Cost Notes
 
