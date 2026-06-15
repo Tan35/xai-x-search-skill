@@ -17,7 +17,9 @@ Do not call internal tool names directly. Grok may internally call `x_keyword_se
 
 - Read the API key from `XAI_API_KEY`. Never hard-code or print the key.
 - Use `https://api.x.ai/v1/responses`.
-- Prefer `grok-4.3` unless the user specifies another available xAI model.
+- Prefer `grok-4.3` unless the user specifies another available xAI model. `grok-4.3` fully supports the `reasoning.effort` parameter and follows cost-control prompts best.
+- If using `grok-4.20` variants (e.g., `grok-4.20-0309-reasoning`), **do not** pass the `reasoning` parameter, or the API will return HTTP 400.
+- Avoid using coding models like `grok-build-0.1` for searches, as they may ignore prompt constraints and trigger excessive billable internal searches.
 - If the user pasted a key in chat, recommend rotating it after testing.
 
 ## Mode Selection

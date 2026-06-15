@@ -112,6 +112,16 @@ xAI charges for server-side `x_search` tool calls in addition to model token usa
 - Prefer cost-first mode unless the user asks for completeness.
 - Use concise output.
 
+## Model Compatibility & Search Behavior
+
+Based on live testing across different xAI models, here is how they handle the `x_search` tool:
+
+- **`grok-4.3`**: The flagship model. Fully supports `reasoning.effort` and follows strict prompt constraints perfectly. Best choice for controlled searches.
+- **`grok-4.20-0309-reasoning` / `grok-4.20-0309-non-reasoning`**: Supports `x_search`, but **does not support** the `reasoning.effort` parameter. Passing `reasoning: { effort: "low" }` will return an HTTP 400 error. If you use these models, you must remove the `reasoning` block from the payload.
+- **`grok-build-0.1`**: As a coding-focused model, it surprisingly supports `x_search`. However, it lacks strong cost-control alignment and may trigger multiple internal searches (e.g., keyword + semantic + keyword) even for simple queries, consuming significantly more tokens. Not recommended for general search tasks.
+
+When running identical keyword search prompts, all models successfully invoke `x_keyword_search` internally, but their output formatting styles vary slightly (e.g., bullet lists vs. numbered lists, inline markdown citations vs. raw URLs).
+
 ## Known Limitations
 
 ### `max_tool_calls` Is Not Strictly Enforced
