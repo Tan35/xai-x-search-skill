@@ -122,6 +122,15 @@ Based on live testing across different xAI models, here is how they handle the `
 
 When running identical keyword search prompts, all models successfully invoke `x_keyword_search` internally, but their output formatting styles vary slightly (e.g., bullet lists vs. numbered lists, inline markdown citations vs. raw URLs).
 
+## Advanced Parameters & Behavior
+
+Based on live testing, here is how advanced parameters behave:
+
+- **`allowed_x_handles` & `excluded_x_handles`**: These work perfectly for filtering by user. However, you **cannot use both at the same time** (returns HTTP 400).
+- **`enable_image_understanding`**: Setting this to `true` allows the model to process and describe images attached to tweets, but it consumes more tokens. Use only when visual context is explicitly requested.
+- **Combined Tools**: `x_search` can be used alongside `web_search` in the same API call. The model will autonomously query both X and the broader web and synthesize the results.
+- **Empty Results**: If the query is too narrow (e.g., extremely specific keyword + 1-day date range), the API gracefully returns no results without throwing an error.
+
 ## Known Limitations
 
 ### `max_tool_calls` Is Not Strictly Enforced

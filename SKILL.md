@@ -44,6 +44,8 @@ If the user gives no preference, default to **cost-first mode** and mention that
 - Add date bounds with `from_date` and `to_date` whenever possible.
 - Ask for a small result count in the prompt, such as "Return up to 3 findings".
 - Avoid broad prompts like "search everything" or "analyze all discussion".
+- Use `allowed_x_handles` or `excluded_x_handles` to filter by user, but **never both at the same time** (returns HTTP 400).
+- Use `enable_image_understanding: true` only if the user explicitly asks about images or visual content.
 
 ## Mode Steps
 
@@ -164,6 +166,56 @@ $totalTokens = if ($response.usage.total_tokens) { $response.usage.total_tokens 
   total_tokens = $totalTokens
   tool_calls = $toolCalls
 } | ConvertTo-Json -Depth 8
+```
+
+## Python Call Example
+
+For agents that write Python instead of PowerShell, use this self-contained pattern:
+
+```python
+import os, requests
+
+api_key = os.environ.get("XAI_API_KEY")
+if not api_key:
+    raise ValueError("Set XAI_API_KEY before calling xAI X Search.")
+
+payload = {
+    "model": "grok-4.3",
+    "input": [{
+        "role": "user",
+        "content": "Use X search in cost-first mode. Use exactly one X keyword/latest search query. Do not run semantic search, user search, thread fetch, or follow-up searches. Search for up to 3 recent X posts about: Grok API. Return author handle, date, summary, and URL."
+    }],
+    "tools": [{
+        "type": "x_search",
+        "from_date": "2026-06-01"
+    }],
+    "max_tool_calls": 1,
+    "reasoning": {"effort": "low"},
+    "max_output_tokens": 800
+}
+
+resp = requests.post(
+    "https://api.x.ai/v1/responses",
+    headers={"Authorization": f"Bearer {api_key}"},
+    json=payload,
+    timeout=120
+)
+resp.raise_for_status()
+data = resp.json()
+
+# Extract answer
+answer = ""
+for item in data.get("output", []):
+    if item.get("type") == "message":
+        for c in item.get("content", []):
+            if c.get("text"): answer += c["text"] + "\n"
+
+# Extract usage
+usage = data.get("usage", {})
+x_calls = usage.get("server_side_tool_usage_details", {}).get("x_search_calls", 0)
+
+print(f"Answer:\n{answer}")
+print(f"x_search_calls: {x_calls}")
 ```
 
 ## Direct API Shape
