@@ -35,6 +35,17 @@ If the user gives no preference, default to **cost-first mode** and mention that
 
 `x_search` is charged per server-side tool call, plus model tokens. Keep calls narrow by default.
 
+**Important: Billing Unit Is Not the API Request**
+
+The billing unit for `x_search` is the **internal tool invocation**, not the API request. One call to `POST /v1/responses` may trigger multiple internal X searches (e.g., `x_keyword_search` followed by `x_semantic_search`), and each one is billed separately. Setting `max_tool_calls: 1` does not guarantee only one billable call — it is advisory. Always combine it with a strict prompt to prevent extra invocations.
+
+```
+Your 1 API request
+    └── Grok decides internally
+            ├── x_keyword_search(...)  → billed $0.005
+            └── x_semantic_search(...) → billed $0.005  ← extra charge
+```
+
 **Pricing (as of June 2026):**
 
 | Component | Rate |
