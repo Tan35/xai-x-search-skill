@@ -33,8 +33,6 @@ If the user gives no preference, default to **cost-first mode** and mention that
 
 ## Cost Controls
 
-`x_search` is charged per server-side tool call, plus model tokens. Keep calls narrow by default.
-
 **Important: Billing Unit Is Not the API Request**
 
 The billing unit for `x_search` is the **internal tool invocation**, not the API request. One call to `POST /v1/responses` may trigger multiple internal X searches (e.g., `x_keyword_search` followed by `x_semantic_search`), and each one is billed separately. Setting `max_tool_calls: 1` does not guarantee only one billable call — it is advisory. Always combine it with a strict prompt to prevent extra invocations.
@@ -64,39 +62,37 @@ Your 1 API request
 
 At cost-first rates, **$5 supports roughly 330–400 searches**. The tool invocation fee ($0.005) is the dominant cost driver — each extra `x_search` call triggered by the model matters more than token volume.
 
-- Public `max_tool_calls` may not fully prevent Grok from making multiple internal X searches. In cost-first mode, also instruct the model to use exactly one keyword/latest search and no semantic follow-up.
-- Set `max_tool_calls` to `1` in cost-first mode.
-- Use `max_tool_calls` between `3` and `6` in quality-first mode.
-- Use `reasoning.effort: "low"` for lookup tasks.
-- Set `max_output_tokens` between `500` and `900` for cost-first mode.
-- Set `max_output_tokens` between `1200` and `2200` for quality-first mode.
-- Add date bounds with `from_date` and `to_date` whenever possible.
-- Ask for a small result count in the prompt, such as "Return up to 3 findings".
-- Avoid broad prompts like "search everything" or "analyze all discussion".
-- Use `allowed_x_handles` or `excluded_x_handles` to filter by user, but **never both at the same time** (returns HTTP 400).
+**Parameter reference:**
+
+| Parameter | Cost-first | Quality-first |
+|---|---|---|
+| `max_tool_calls` | `1` | `3`–`6` |
+| `max_output_tokens` | `500`–`900` | `1200`–`2200` |
+| `reasoning.effort` | `"low"` | `"low"` |
+
+Additional rules:
+- Add `from_date` / `to_date` whenever possible to narrow the search window.
+- Use `allowed_x_handles` **or** `excluded_x_handles` to filter by user, but **never both at the same time** (returns HTTP 400).
 - Use `enable_image_understanding: true` only if the user explicitly asks about images or visual content.
 
 ## Mode Steps
 
 ### Cost-First Mode
 
-Use this when minimizing spend matters more than recall.
-
 1. Convert the user's request into one compact keyword query with exact phrases and 1-2 synonyms.
 2. Add date bounds if the user supplied them; otherwise use the narrowest reasonable recent window.
-3. Ask for 3-5 findings.
-4. Tell the model: "Use exactly one X keyword/latest search query. Do not run semantic search, user search, thread fetch, or follow-up searches unless required to answer a user-provided specific URL/thread."
-5. Return URLs, short summaries, and usage.
+3. Set `max_tool_calls: 1`, `max_output_tokens: 800`, `reasoning.effort: "low"`.
+4. Include in the prompt: *"Use exactly one X keyword/latest search query. Do not run semantic search, user search, thread fetch, or follow-up searches unless the user provided a specific thread URL. Return up to 3 findings: author handle, date, one-line summary, URL."*
+5. Return the answer, URLs, and `x_search_calls` count from usage.
 
 ### Quality-First Mode
-
-Use this when recall, verification, or context matters more than cost.
 
 1. Start with a semantic search for broad recall.
 2. Add one keyword/latest search using exact phrases.
 3. If specific handles or thread URLs appear, allow user search or thread fetch.
-4. Ask for 5-10 findings, grouped by confidence or theme.
-5. Return URLs, short summaries, what was directly supported, what remains unverified, and usage.
+4. Set `max_tool_calls: 5`, `max_output_tokens: 1800`, `reasoning.effort: "low"`.
+5. Include in the prompt: *"Use semantic search plus keyword/latest search, and fetch user/thread context if clearly relevant. Return up to 8 findings grouped by confidence or theme: author handle, date, one-line summary, URL, and mark direct evidence vs unverified claims."*
+6. Return the answer, URLs, what was directly supported, what remains unverified, and `x_search_calls` count.
 
 ## Self-Contained PowerShell Use
 
@@ -197,56 +193,6 @@ $totalTokens = if ($response.usage.total_tokens) { $response.usage.total_tokens 
 } | ConvertTo-Json -Depth 8
 ```
 
-## Python Call Example
-
-For agents that write Python instead of PowerShell, use this self-contained pattern:
-
-```python
-import os, requests
-
-api_key = os.environ.get("XAI_API_KEY")
-if not api_key:
-    raise ValueError("Set XAI_API_KEY before calling xAI X Search.")
-
-payload = {
-    "model": "grok-4.3",
-    "input": [{
-        "role": "user",
-        "content": "Use X search in cost-first mode. Use exactly one X keyword/latest search query. Do not run semantic search, user search, thread fetch, or follow-up searches. Search for up to 3 recent X posts about: Grok API. Return author handle, date, summary, and URL."
-    }],
-    "tools": [{
-        "type": "x_search",
-        "from_date": "2026-06-01"
-    }],
-    "max_tool_calls": 1,
-    "reasoning": {"effort": "low"},
-    "max_output_tokens": 800
-}
-
-resp = requests.post(
-    "https://api.x.ai/v1/responses",
-    headers={"Authorization": f"Bearer {api_key}"},
-    json=payload,
-    timeout=120
-)
-resp.raise_for_status()
-data = resp.json()
-
-# Extract answer
-answer = ""
-for item in data.get("output", []):
-    if item.get("type") == "message":
-        for c in item.get("content", []):
-            if c.get("text"): answer += c["text"] + "\n"
-
-# Extract usage
-usage = data.get("usage", {})
-x_calls = usage.get("server_side_tool_usage_details", {}).get("x_search_calls", 0)
-
-print(f"Answer:\n{answer}")
-print(f"x_search_calls: {x_calls}")
-```
-
 ## Direct API Shape
 
 Cost-first payload:
@@ -299,12 +245,10 @@ Quality-first payload:
 
 ## Interpreting Results
 
-In the response:
-
-- Final answer text is usually in `output[]` items where `type == "message"`.
+- Final answer text is in `output[]` items where `type == "message"`.
 - Internal search calls appear as `custom_tool_call` items.
-- Usage is in `usage.server_side_tool_usage_details.x_search_calls`.
-- If cost-first mode still produces multiple internal calls, tell the user the actual count and consider rerunning with a narrower exact-phrase query only if they approve the extra cost.
+- Actual billable calls are in `usage.server_side_tool_usage_details.x_search_calls`.
+- If cost-first mode still produces multiple internal calls, report the actual count to the user and offer to rerun with a narrower query only if they approve the extra cost.
 - `num_sources_used` can be `0` even when X search worked; inspect tool calls and final URLs too.
 
 ## Failure Handling
@@ -312,7 +256,7 @@ In the response:
 - `400`: bad request — key may be invalid, malformed, or the endpoint rejected the payload. Check key format and request body.
 - `401` or `403`: key is missing, invalid, revoked, or lacks permission.
 - `429`: rate limit or quota issue.
-- Connection failures (DNS, TLS, network): the `.ps1` script detects missing `Response` and reports a connection error; inline callers should wrap the HTTP call and handle exceptions where `Response` is null.
+- Connection failures (DNS, TLS, network): detect missing `Response` and report a connection error.
 - No results: retry once with a simpler keyword query and the same `max_tool_calls` limit.
 - If a request times out, narrow the query and lower `max_output_tokens`.
 
@@ -331,11 +275,3 @@ powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.codex\skills\xai-x-s
 ```
 
 Do not depend on this script when the agent can only access `SKILL.md`; use the self-contained pattern above instead.
-
-## References
-
-- [X Search Tool — xAI Docs](https://docs.x.ai/developers/tools/x-search): Official documentation for the `x_search` tool, including all parameters (`allowed_x_handles`, `excluded_x_handles`, `from_date`, `to_date`, `enable_image_understanding`, `enable_video_understanding`) and SDK examples.
-- [Tool Usage Details — xAI Docs](https://docs.x.ai/developers/tools/tool-usage-details): Explains the distinction between `tool_calls` (all attempts) and `server_side_tool_usage` (billable calls), token usage breakdown in agentic requests, and `max_turns` behavior.
-- [Pricing — xAI Docs](https://docs.x.ai/docs/pricing): Official pricing page covering tool invocation fees ($5/1k calls for `x_search`), token rates per model, and Batch API discounts.
-- [Models — xAI Docs](https://docs.x.ai/docs/models): Model catalog with context window sizes, per-model token pricing, and guidance on which model to choose.
-- [Responses API Overview — xAI Docs](https://docs.x.ai/developers/responses-api): Entry point for the Responses API used by this skill (`POST https://api.x.ai/v1/responses`).
