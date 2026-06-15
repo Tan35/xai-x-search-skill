@@ -104,13 +104,39 @@ The script returns JSON with:
 
 ## Cost Notes
 
-xAI charges for server-side `x_search` tool calls in addition to model token usage. Keep searches narrow:
+xAI charges two independent components per request: **token usage** and **tool invocation fees**.
 
-- Use date ranges.
-- Ask for a small number of results.
-- Keep `MaxToolCalls` at `1` unless you explicitly need a broader search.
-- Prefer cost-first mode unless the user asks for completeness.
-- Use concise output.
+### Pricing (as of June 2026)
+
+| Component | Rate |
+|---|---|
+| `x_search` tool invocation | $5.00 / 1,000 calls ($0.005 per call) |
+| Token input (grok-4.3 / grok-4.20) | $1.25 / 1M tokens |
+| Token output (grok-4.3 / grok-4.20) | $2.50 / 1M tokens |
+| Token input (grok-build-0.1) | $1.00 / 1M tokens |
+| Token output (grok-build-0.1) | $2.00 / 1M tokens |
+
+### Live-Tested Cost Benchmarks
+
+The following numbers are based on real API calls with the same query (`xAI Grok API`) across models:
+
+| Model | Tokens | x_search Calls | Est. Cost / Search |
+|---|---|---|---|
+| `grok-4.3` (cost-first + strict prompt) | ~4,500–5,500 | 1 | ~$0.012–$0.015 |
+| `grok-4.20-non-reasoning` (fastest) | ~4,000–4,500 | 1 | ~$0.010–$0.012 |
+| `grok-4.20-reasoning` | ~6,000–6,500 | 1 | ~$0.014–$0.016 |
+| `grok-4.3` (quality-first, 3 calls) | ~8,000–10,000 | 3 | ~$0.025–$0.035 |
+| `grok-4.3` (no prompt constraint) | ~7,000–8,000 | 2 | ~$0.020–$0.025 |
+
+At cost-first rates with `grok-4.3`, **$5 supports roughly 330–400 searches**. The tool invocation fee ($0.005/call) is the dominant cost driver — each extra `x_search` call triggered by the model adds more to the bill than token volume differences between models.
+
+### Tips to Keep Costs Low
+
+- Use date ranges to narrow the search window.
+- Ask for a small number of results (3–5).
+- Keep `MaxToolCalls` at `1` and combine with a strict prompt to prevent extra calls.
+- Prefer cost-first mode unless the user explicitly asks for completeness.
+- Use concise output (`max_output_tokens` ≤ 900 in cost-first mode).
 
 ## Model Compatibility & Search Behavior
 
