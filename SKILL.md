@@ -331,3 +331,11 @@ powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.codex\skills\xai-x-s
 ```
 
 Do not depend on this script when the agent can only access `SKILL.md`; use the self-contained pattern above instead.
+
+## References
+
+- [X Search Tool — xAI Docs](https://docs.x.ai/developers/tools/x-search): Official documentation for the `x_search` tool, including all parameters (`allowed_x_handles`, `excluded_x_handles`, `from_date`, `to_date`, `enable_image_understanding`, `enable_video_understanding`) and SDK examples.
+- [Tool Usage Details — xAI Docs](https://docs.x.ai/developers/tools/tool-usage-details): Explains the distinction between `tool_calls` (all attempts) and `server_side_tool_usage` (billable calls), token usage breakdown in agentic requests, and `max_turns` behavior.
+- [Pricing — xAI Docs](https://docs.x.ai/docs/pricing): Official pricing page covering tool invocation fees ($5/1k calls for `x_search`), token rates per model, and Batch API discounts.
+- [Models — xAI Docs](https://docs.x.ai/docs/models): Model catalog with context window sizes, per-model token pricing, and guidance on which model to choose.
+- [Responses API Overview — xAI Docs](https://docs.x.ai/developers/responses-api): Entry point for the Responses API used by this skill (`POST https://api.x.ai/v1/responses`).

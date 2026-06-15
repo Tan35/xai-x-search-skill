@@ -179,3 +179,14 @@ The bundled helper script requires PowerShell. On Linux or macOS, install [Power
 - `agents/openai.yaml`: UI metadata for compatible agents.
 - `scripts/xai_x_search.ps1`: Reusable PowerShell caller with error handling and cost warnings.
 - `LICENSE`: MIT license.
+
+## References
+
+| Document | Description |
+|---|---|
+| [X Search Tool](https://docs.x.ai/developers/tools/x-search) | Official `x_search` parameter reference and SDK examples |
+| [Tool Usage Details](https://docs.x.ai/developers/tools/tool-usage-details) | Billing unit clarification, `tool_calls` vs `server_side_tool_usage`, `max_turns` behavior |
+| [Pricing](https://docs.x.ai/docs/pricing) | Tool invocation fees, token rates, Batch API discounts |
+| [Models](https://docs.x.ai/docs/models) | Model catalog, context windows, per-model pricing |
+| [Responses API](https://docs.x.ai/developers/responses-api) | Responses API overview and endpoint reference |
+| [Web Search Tool](https://docs.x.ai/developers/tools/web-search) | `web_search` documentation (can be combined with `x_search`) |
