@@ -106,6 +106,8 @@ The script returns JSON with:
 
 xAI charges two independent components per request: **token usage** and **tool invocation fees**.
 
+> **Common misconception**: The billing unit for `x_search` is **not** the API request — it is the **internal tool invocation**. A single call to `POST /v1/responses` can trigger multiple internal X searches (e.g., `x_keyword_search` + `x_semantic_search`), and each one is billed separately at $0.005. Setting `max_tool_calls: 1` does not hard-limit this — it is advisory. This is why cost-first mode must combine the parameter with a strict prompt constraint.
+
 ### Pricing (as of June 2026)
 
 | Component | Rate |
