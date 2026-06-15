@@ -35,6 +35,24 @@ If the user gives no preference, default to **cost-first mode** and mention that
 
 `x_search` is charged per server-side tool call, plus model tokens. Keep calls narrow by default.
 
+**Pricing (as of June 2026):**
+
+| Component | Rate |
+|---|---|
+| `x_search` tool invocation | $5.00 / 1,000 calls ($0.005 per call) |
+| Token usage (input) | $1.25 / 1M tokens (grok-4.3 / grok-4.20) |
+| Token usage (output) | $2.50 / 1M tokens (grok-4.3 / grok-4.20) |
+
+**Live-tested cost benchmarks (grok-4.3, same query):**
+
+| Mode | Typical Tokens | x_search Calls | Estimated Cost |
+|---|---|---|---|
+| cost-first + strict prompt | ~4,500–5,500 | 1 | ~$0.012–$0.015 |
+| cost-first, no prompt constraint | ~7,000–8,000 | 2 | ~$0.020–$0.025 |
+| quality-first (3 calls) | ~8,000–10,000 | 3 | ~$0.025–$0.035 |
+
+At cost-first rates, **$5 supports roughly 330–400 searches**. The tool invocation fee ($0.005) is the dominant cost driver — each extra `x_search` call triggered by the model matters more than token volume.
+
 - Public `max_tool_calls` may not fully prevent Grok from making multiple internal X searches. In cost-first mode, also instruct the model to use exactly one keyword/latest search and no semantic follow-up.
 - Set `max_tool_calls` to `1` in cost-first mode.
 - Use `max_tool_calls` between `3` and `6` in quality-first mode.
