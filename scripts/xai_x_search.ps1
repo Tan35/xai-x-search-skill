@@ -1,3 +1,6 @@
+# Optional local helper (Windows / PowerShell).
+# Agents should follow SKILL.md (curl/JSON) instead of requiring this file.
+
 param(
   [Parameter(Mandatory = $true)]
   [string]$Query,
