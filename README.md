@@ -41,6 +41,20 @@ export XAI_API_KEY="xai-..."
 
 One HTTP request can still trigger **multiple** billable internal searches (~$0.005 each). Cost-first uses `max_tool_calls: 1` **and** a strict prompt. See `SKILL.md`.
 
+## What does one search cost?
+
+Rough numbers from live runs on **`grok-4.3`** (list prices: ~$0.005 per successful `x_search` + token fees). Not a quote — your query, model, and how free the agent is will move this.
+
+| Setup | Typical x_search calls | Ballpark / request |
+|---|---:|---|
+| **This skill · cost-first** | 1 | **~$0.01–0.015** |
+| **This skill · quality-first** | ~3 | **~$0.025–0.035** |
+| **No skill** (agent free to multi-search) | often 2–4+ | **~$0.02–0.05+** |
+
+Without the skill, a vague “search X for me” often turns into keyword + semantic (+ maybe a thread). Same HTTP call, **extra billable searches**. Cost-first is mainly about **stopping that by default**.
+
+Order of magnitude: at cost-first rates, **~$5 ≈ a few hundred** one-shot lookups. Quality-first or loose agents burn that faster.
+
 ## Layout
 
 | Path | Who it’s for |
