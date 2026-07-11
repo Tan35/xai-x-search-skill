@@ -17,25 +17,26 @@ Do not call internal tool names directly. Grok may internally call `x_keyword_se
 
 - Read the API key from `XAI_API_KEY`. Never hard-code or print the key.
 - Use `https://api.x.ai/v1/responses`.
-- Prefer `grok-4.3` unless the user specifies another available xAI model. `grok-4.3` fully supports the `reasoning.effort` parameter and follows cost-control prompts best.
-- If using `grok-4.20` variants (e.g., `grok-4.20-0309-reasoning`), **do not** pass the `reasoning` parameter, or the API will return HTTP 400.
-- Avoid using coding models like `grok-build-0.1` for searches, as they may ignore prompt constraints and trigger excessive billable internal searches.
+- Prefer **`grok-4.3`** unless the user names another model. It follows cost-control prompts well and supports `reasoning.effort`.
+- **`grok-4.5`**: stronger, higher token price. Use when the user asks or needs more reasoning depth — not the default for a cheap link check.
+- **`grok-4.20` variants**: support `x_search`, but **do not** pass `reasoning: { effort: ... }` (HTTP 400). Omit the `reasoning` block.
+- Avoid **`grok-build-0.1`** for general search; it often multi-searches and ignores tight cost prompts.
 - If the user pasted a key in chat, recommend rotating it after testing.
 
 ## Mode Selection
 
 Choose one mode before calling the API:
 
-- **Cost-first mode**: Use when the user says cheap, low cost, quick check, one search, verify lightly, or gives no preference. This is the default.
-- **Quality-first mode**: Use when the user says comprehensive, high quality, deep search, don't worry about cost, find all relevant posts, compare sources, or asks for threads/users/context.
+- **Cost-first mode**: cheap, quick check, one search, verify lightly, or no preference. **Default.**
+- **Quality-first mode**: comprehensive, deep search, don't worry about cost, find all relevant posts, compare sources, threads/users/context.
 
-If the user gives no preference, default to **cost-first mode** and mention that assumption. Ask a clarifying question only when the task is high stakes or the user clearly expects exhaustive coverage.
+If the user gives no preference, use **cost-first** and say so. Only ask to clarify when stakes are high or they clearly want exhaustive coverage.
 
 ## Cost Controls
 
-**Important: Billing Unit Is Not the API Request**
+**Billing unit is not the API request**
 
-The billing unit for `x_search` is the **internal tool invocation**, not the API request. One call to `POST /v1/responses` may trigger multiple internal X searches (e.g., `x_keyword_search` followed by `x_semantic_search`), and each one is billed separately. Setting `max_tool_calls: 1` does not guarantee only one billable call — it is advisory. Always combine it with a strict prompt to prevent extra invocations.
+`x_search` is billed per **successful internal tool invocation**, not per HTTP request. One `POST /v1/responses` may run several X searches, each billed (list price **$0.005**). `max_tool_calls: 1` is **advisory** — always combine it with a strict prompt.
 
 ```
 Your 1 API request
@@ -44,23 +45,15 @@ Your 1 API request
             └── x_semantic_search(...) → billed $0.005  ← extra charge
 ```
 
-**Pricing (as of June 2026):**
+**List pricing (verify on docs; rates change):**
 
 | Component | Rate |
 |---|---|
-| `x_search` tool invocation | $5.00 / 1,000 calls ($0.005 per call) |
-| Token usage (input) | $1.25 / 1M tokens (grok-4.3 / grok-4.20) |
-| Token usage (output) | $2.50 / 1M tokens (grok-4.3 / grok-4.20) |
+| `x_search` | $5.00 / 1,000 ($0.005 each) |
+| Input / output (`grok-4.3` / `grok-4.20`) | $1.25 / $2.50 per 1M |
+| Input / output (`grok-4.5`) | $2.00 / $6.00 per 1M |
 
-**Live-tested cost benchmarks (grok-4.3, same query):**
-
-| Mode | Typical Tokens | x_search Calls | Estimated Cost |
-|---|---|---|---|
-| cost-first + strict prompt | ~4,500–5,500 | 1 | ~$0.012–$0.015 |
-| cost-first, no prompt constraint | ~7,000–8,000 | 2 | ~$0.020–$0.025 |
-| quality-first (3 calls) | ~8,000–10,000 | 3 | ~$0.025–$0.035 |
-
-At cost-first rates, **$5 supports roughly 330–400 searches**. The tool invocation fee ($0.005) is the dominant cost driver — each extra `x_search` call triggered by the model matters more than token volume.
+Rough benchmarks (`grok-4.3`): cost-first + strict prompt ≈ **$0.012–$0.015** (1 call); quality-first with ~3 calls ≈ **$0.025–$0.035**. Extra tool calls dominate small token differences.
 
 **Parameter reference:**
 
@@ -68,41 +61,42 @@ At cost-first rates, **$5 supports roughly 330–400 searches**. The tool invoca
 |---|---|---|
 | `max_tool_calls` | `1` | `3`–`6` |
 | `max_output_tokens` | `500`–`900` | `1200`–`2200` |
-| `reasoning.effort` | `"low"` | `"low"` |
+| `reasoning.effort` | `"low"` if supported | `"low"` if supported |
 
 Additional rules:
-- Add `from_date` / `to_date` whenever possible to narrow the search window.
-- Use `allowed_x_handles` **or** `excluded_x_handles` to filter by user, but **never both at the same time** (returns HTTP 400).
-- Use `enable_image_understanding: true` only if the user explicitly asks about images or visual content.
+
+- Add `from_date` / `to_date` whenever possible.
+- Use `allowed_x_handles` **or** `excluded_x_handles`, never both (HTTP 400).
+- `enable_image_understanding` / `enable_video_understanding` only if the user asks about media (extra tokens).
 
 ## Mode Steps
 
 ### Cost-First Mode
 
-1. Convert the user's request into one compact keyword query with exact phrases and 1-2 synonyms.
-2. Add date bounds if the user supplied them; otherwise use the narrowest reasonable recent window.
-3. Set `max_tool_calls: 1`, `max_output_tokens: 800`, `reasoning.effort: "low"`.
-4. Include in the prompt: *"Use exactly one X keyword/latest search query. Do not run semantic search, user search, thread fetch, or follow-up searches unless the user provided a specific thread URL. Return up to 3 findings: author handle, date, one-line summary, URL."*
-5. Return the answer, URLs, and `x_search_calls` count from usage.
+1. One compact keyword query (exact phrases + 1–2 synonyms).
+2. Date bounds if given; otherwise the narrowest reasonable recent window.
+3. `max_tool_calls: 1`, `max_output_tokens: 800`; add `reasoning.effort: "low"` only if the model supports it.
+4. Prompt must include: *Use exactly one X keyword/latest search query. Do not run semantic search, user search, thread fetch, or follow-up searches unless the user provided a specific thread URL. Return up to 3 findings: author handle, date, one-line summary, URL. For topical relevance use strong match vs loose match (not fact-check language).*
+5. Return the answer, URLs, and `x_search_calls` from usage.
 
 ### Quality-First Mode
 
-1. Start with a semantic search for broad recall.
-2. Add one keyword/latest search using exact phrases.
-3. If specific handles or thread URLs appear, allow user search or thread fetch.
-4. Set `max_tool_calls: 5`, `max_output_tokens: 1800`, `reasoning.effort: "low"`.
-5. Include in the prompt: *"Use semantic search plus keyword/latest search, and fetch user/thread context if clearly relevant. Return up to 8 findings grouped by confidence or theme: author handle, date, one-line summary, URL, and mark direct evidence vs unverified claims."*
-6. Return the answer, URLs, what was directly supported, what remains unverified, and `x_search_calls` count.
+1. Semantic search for recall + keyword/latest for precision.
+2. User/thread fetch when handles or status URLs appear.
+3. `max_tool_calls: 5`, `max_output_tokens: 1800`; `reasoning.effort: "low"` if supported.
+4. Prompt: *Use semantic search plus keyword/latest search, and fetch user/thread context if clearly relevant. Return up to 8 findings: author handle, date, one-line summary, URL, and mark strong match vs loose match (topical relevance only).*
+5. Return findings, what is well supported vs thin, and `x_search_calls`.
 
 ## Self-Contained PowerShell Use
 
-Agents that only read `SKILL.md` should use this inline PowerShell pattern. Replace `$mode`, `$query`, `$fromDate`, and `$toDate`; do not print the API key.
+Agents that only read `SKILL.md` should use this pattern. Do not print the API key.
 
 ```powershell
 $mode = "cost" # "cost" or "quality"
 $query = "Grok CLI X search tools"
 $fromDate = "2026-06-01"
 $toDate = "2026-06-05"
+$model = "grok-4.3"
 
 if (-not $env:XAI_API_KEY) {
   throw "Set XAI_API_KEY before calling xAI X Search."
@@ -112,12 +106,12 @@ if ($mode -eq "quality") {
   $maxResults = 8
   $maxToolCalls = 5
   $maxOutputTokens = 1800
-  $searchInstruction = "Use X search in quality-first mode. Use semantic search plus keyword/latest search, and fetch user/thread context if it is clearly relevant. Search for up to $maxResults relevant X posts about: $query. Return author handle, date if available, one-line summary, URL, and mark direct evidence vs unverified claims."
+  $searchInstruction = "Use X search in quality-first mode. Use semantic search plus keyword/latest search, and fetch user/thread context if it is clearly relevant. Search for up to $maxResults relevant X posts about: $query. Return author handle, date if available, one-line summary, URL, and mark strong match vs loose match (topical relevance only)."
 } else {
   $maxResults = 3
   $maxToolCalls = 1
   $maxOutputTokens = 800
-  $searchInstruction = "Use X search in cost-first mode. Use exactly one X keyword/latest search query. Do not run semantic search, user search, thread fetch, or follow-up searches unless the user provided a specific thread URL. Search for up to $maxResults recent X posts about: $query. Return author handle, date if available, one-line summary, and URL. If no direct matches are found, say so and include closest matches."
+  $searchInstruction = "Use X search in cost-first mode. Use exactly one X keyword/latest search query. Do not run semantic search, user search, thread fetch, or follow-up searches unless the user provided a specific thread URL. Search for up to $maxResults recent X posts about: $query. Return author handle, date if available, one-line summary, and URL. Prefer strong matches; if only weak ones exist, mark them loose match."
 }
 
 $headers = @{
@@ -126,7 +120,7 @@ $headers = @{
 }
 
 $payload = @{
-  model = "grok-4.3"
+  model = $model
   input = @(
     @{
       role = "user"
@@ -141,16 +135,22 @@ $payload = @{
     }
   )
   max_tool_calls = $maxToolCalls
-  reasoning = @{ effort = "low" }
   max_output_tokens = $maxOutputTokens
-} | ConvertTo-Json -Depth 10
+}
+
+# grok-4.20* rejects reasoning.effort
+if ($model -notmatch '4\.20' -and $model -notmatch 'build') {
+  $payload.reasoning = @{ effort = "low" }
+}
+
+$payloadJson = $payload | ConvertTo-Json -Depth 10
 
 try {
   $response = Invoke-RestMethod `
     -Method Post `
     -Uri "https://api.x.ai/v1/responses" `
     -Headers $headers `
-    -Body $payload `
+    -Body $payloadJson `
     -TimeoutSec 120
 } catch {
   if (-not $_.Exception.Response) {
@@ -162,7 +162,6 @@ try {
   exit 1
 }
 
-# Defensive parse: response.output may be absent or not an array
 $texts = @()
 $toolCalls = @()
 if ($response.output -is [array]) {
@@ -195,7 +194,7 @@ $totalTokens = if ($response.usage.total_tokens) { $response.usage.total_tokens 
 
 ## Direct API Shape
 
-Cost-first payload:
+Cost-first (omit `reasoning` for `grok-4.20*`):
 
 ```json
 {
@@ -219,7 +218,7 @@ Cost-first payload:
 }
 ```
 
-Quality-first payload:
+Quality-first:
 
 ```json
 {
@@ -227,7 +226,7 @@ Quality-first payload:
   "input": [
     {
       "role": "user",
-      "content": "Use X search in quality-first mode. Use semantic search plus keyword/latest search, and fetch user/thread context if clearly relevant. Search for up to 8 relevant X posts about <topic>. Return author handle, date, one-line summary, URL, and mark direct evidence vs unverified claims."
+      "content": "Use X search in quality-first mode. Use semantic search plus keyword/latest search, and fetch user/thread context if clearly relevant. Search for up to 8 relevant X posts about <topic>. Return author handle, date, one-line summary, URL, and mark strong match vs loose match (topical relevance only)."
     }
   ],
   "tools": [
@@ -245,24 +244,22 @@ Quality-first payload:
 
 ## Interpreting Results
 
-- Final answer text is in `output[]` items where `type == "message"`.
-- Internal search calls appear as `custom_tool_call` items.
-- Actual billable calls are in `usage.server_side_tool_usage_details.x_search_calls`.
-- If cost-first mode still produces multiple internal calls, report the actual count to the user and offer to rerun with a narrower query only if they approve the extra cost.
-- `num_sources_used` can be `0` even when X search worked; inspect tool calls and final URLs too.
+- Final text: `output[]` items with `type == "message"`.
+- Internal searches: often `custom_tool_call`.
+- Billable count: `usage.server_side_tool_usage_details.x_search_calls`.
+- If cost-first still multi-calls, report the real count and only re-run wider with user approval.
+- `num_sources_used` can be `0` even when search worked; check tool calls and URLs.
 
 ## Failure Handling
 
-- `400`: bad request — key may be invalid, malformed, or the endpoint rejected the payload. Check key format and request body.
-- `401` or `403`: key is missing, invalid, revoked, or lacks permission.
-- `429`: rate limit or quota issue.
-- Connection failures (DNS, TLS, network): detect missing `Response` and report a connection error.
-- No results: retry once with a simpler keyword query and the same `max_tool_calls` limit.
-- If a request times out, narrow the query and lower `max_output_tokens`.
+- `400`: bad request, bad key format, or rejected payload (including unsupported `reasoning` on some models).
+- `401` / `403`: missing, invalid, or revoked key.
+- `429`: rate limit or quota.
+- Connection errors: no HTTP response — DNS/TLS/network.
+- No results: one retry with a simpler keyword and the same `max_tool_calls`.
+- Timeouts: narrower query, lower `max_output_tokens`.
 
 ## Optional Bundled Script
-
-Some agents can read files under `scripts/`. If available, they may use:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.codex\skills\xai-x-search\scripts\xai_x_search.ps1" `
@@ -274,4 +271,4 @@ powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.codex\skills\xai-x-s
   -MaxResults 3
 ```
 
-Do not depend on this script when the agent can only access `SKILL.md`; use the self-contained pattern above instead.
+Prefer the inline pattern above when the agent cannot run `scripts/`.

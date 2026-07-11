@@ -35,7 +35,7 @@ Use X search in quality-first mode. Use semantic search plus keyword/latest sear
 Search for up to $MaxResults relevant X posts about:
 $Query
 
-Return author handle, date if available, one-line summary, URL, and mark direct evidence vs unverified claims.
+Return author handle, date if available, one-line summary, URL, and mark strong match vs loose match (topical relevance only, not fact-check).
 "@
 } else {
 $prompt = @"
@@ -43,7 +43,7 @@ Use X search in cost-first mode. Use exactly one X keyword/latest search query. 
 Search for up to $MaxResults recent X posts about:
 $Query
 
-Return concise findings with author handle, date if available, one-line summary, and URL. If no direct matches are found, say so and include the closest matches.
+Return concise findings with author handle, date if available, one-line summary, and URL. Prefer strong matches; if only weak ones exist, mark them loose match.
 "@
 }
 
@@ -57,9 +57,15 @@ $payload = @{
   )
   tools = @($tool)
   max_tool_calls = $MaxToolCalls
-  reasoning = @{ effort = "low" }
   max_output_tokens = $MaxOutputTokens
-} | ConvertTo-Json -Depth 10
+}
+
+# grok-4.20* and coding builds reject reasoning.effort
+if ($Model -notmatch '4\.20' -and $Model -notmatch 'build') {
+  $payload.reasoning = @{ effort = "low" }
+}
+
+$payloadJson = $payload | ConvertTo-Json -Depth 10
 
 $headers = @{
   Authorization = "Bearer $env:XAI_API_KEY"
@@ -71,7 +77,7 @@ try {
     -Method Post `
     -Uri "https://api.x.ai/v1/responses" `
     -Headers $headers `
-    -Body $payload `
+    -Body $payloadJson `
     -TimeoutSec 120
 } catch {
   # Non-HTTP errors (DNS, connection refused, TLS) have no Response object
