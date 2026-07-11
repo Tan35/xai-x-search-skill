@@ -7,6 +7,15 @@ Cost-aware X search for Grok/Codex agents via the Responses API `x_search` tool.
 
 ## Install
 
+Any agent that can load a skill from a folder only needs this repo (especially `SKILL.md`). Clone it somewhere your agent reads skills from:
+
+```bash
+git clone https://github.com/Tan35/xai-x-search-skill.git
+# then point your agent at that directory, or copy/symlink into its skills path
+```
+
+Examples for hosts that use a default skills directory:
+
 ```bash
 # Codex
 git clone https://github.com/Tan35/xai-x-search-skill.git ~/.codex/skills/xai-x-search
@@ -15,7 +24,9 @@ git clone https://github.com/Tan35/xai-x-search-skill.git ~/.codex/skills/xai-x-
 git clone https://github.com/Tan35/xai-x-search-skill.git ~/.grok/skills/xai-x-search
 ```
 
-Windows: use `$env:USERPROFILE\.codex\skills\xai-x-search` (or `.grok\...`) instead of `~/...`.
+Windows: swap `~/` for `$env:USERPROFILE\` (e.g. `$env:USERPROFILE\.codex\skills\xai-x-search`).
+
+Other tools (Cursor, Claude Code, custom runners, etc.): use whatever path they document for skills/plugins — the skill itself is just files; **`SKILL.md` is the entrypoint**.
 
 ```bash
 export XAI_API_KEY="xai-..."
